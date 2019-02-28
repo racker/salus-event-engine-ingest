@@ -68,7 +68,7 @@ public class IngestService implements Closeable {
     log.trace("Ingesting metric={}", metric);
 
     final EngineInstance engineInstance = eventEnginePicker
-        .pickRecipient(metric.getAccount(), metric.getCollectionName());
+        .pickRecipient(metric.getAccount(), metric.getDevice(), metric.getCollectionName());
 
     log.debug("Sending measurement={} for tenant={} to engine={}",
         metric.getCollectionName(), metric.getAccount(), engineInstance);

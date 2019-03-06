@@ -1,0 +1,19 @@
+# This profile allows us to reuse this ingest app for simply taking raw metrics and sending them
+# to an InfluxDB instance, like this one:
+# https://github.com/racker/salus-telemetry-bundle/blob/master/dev/telemetry-infra/docker-compose-influxdb.yml#L4
+
+server:
+  port: 0
+spring:
+  application:
+    name: metrics-ingest-influx
+event:
+  discovery:
+    # a port strategy of 1 partition to port 8086 basically forces it to send to the one InfluxDB
+    partitions: 1
+    port-strategy:
+      starting-port: 8086
+  ingest:
+    # override the database derivation from tenant
+    influx-db-database-override: salus
+    influx-db-retention-policy-override: autogen

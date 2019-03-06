@@ -86,6 +86,7 @@ public class IngestService implements Closeable {
         .time(timestamp.toEpochMilli(), TimeUnit.MILLISECONDS);
 
     metric.getSystemMetadata().forEach(pointBuilder::tag);
+    metric.getCollectionMetadata().forEach(pointBuilder::tag);
     pointBuilder.tag(Tags.ACCOUNT_TYPE, metric.getAccountType().toString());
     pointBuilder.tag(Tags.ACCOUNT, metric.getAccount());
     pointBuilder.tag(Tags.RESOURCE_ID, metric.getDevice());

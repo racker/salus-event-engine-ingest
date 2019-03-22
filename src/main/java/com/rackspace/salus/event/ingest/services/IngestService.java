@@ -31,7 +31,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 import org.influxdb.InfluxDB;
-import org.influxdb.InfluxDBFactory;
 import org.influxdb.dto.Point;
 import org.influxdb.dto.Point.Builder;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,6 +45,7 @@ public class IngestService implements Closeable {
   private final KafkaTopicProperties kafkaTopicProperties;
   private final EventIngestProperties eventIngestProperties;
   private final EventEnginePicker eventEnginePicker;
+  private final InfluxConnectionPool influxConnectionPool;
   private final ConcurrentHashMap<EngineInstance, InfluxDB> influxConnections =
       new ConcurrentHashMap<>();
   private static final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ISO_INSTANT;
@@ -53,10 +53,12 @@ public class IngestService implements Closeable {
   @Autowired
   public IngestService(KafkaTopicProperties kafkaTopicProperties,
                        EventIngestProperties eventIngestProperties,
-                       EventEnginePicker eventEnginePicker) {
+                       EventEnginePicker eventEnginePicker,
+                       InfluxConnectionPool influxConnectionPool) {
     this.kafkaTopicProperties = kafkaTopicProperties;
     this.eventIngestProperties = eventIngestProperties;
     this.eventEnginePicker = eventEnginePicker;
+    this.influxConnectionPool = influxConnectionPool;
   }
 
   public String getTopic() {
@@ -67,19 +69,18 @@ public class IngestService implements Closeable {
   public void consumeMetric(ExternalMetric metric) {
     log.trace("Ingesting metric={}", metric);
 
+    final String tenant = String.join(":",
+        metric.getAccountType().toString(),
+        metric.getAccount()
+        );
+
     final EngineInstance engineInstance = eventEnginePicker
         .pickRecipient(metric.getAccount(), metric.getDevice(), metric.getCollectionName());
 
     log.debug("Sending measurement={} for tenant={} to engine={}",
-        metric.getCollectionName(), metric.getAccount(), engineInstance);
+        metric.getCollectionName(), tenant, engineInstance);
 
-    final InfluxDB kapacitorWriter = influxConnections.computeIfAbsent(
-        engineInstance,
-        key ->
-            InfluxDBFactory.connect(
-                String.format("http://%s:%d", key.getHost(), key.getPort())
-            )
-    );
+    final InfluxDB kapacitorWriter = influxConnectionPool.getConnection(engineInstance);
 
     final Instant timestamp = Instant.parse(metric.getTimestamp());
     final Builder pointBuilder = Point.measurement(metric.getCollectionName())
@@ -87,8 +88,8 @@ public class IngestService implements Closeable {
 
     metric.getSystemMetadata().forEach(pointBuilder::tag);
     metric.getCollectionMetadata().forEach(pointBuilder::tag);
-    pointBuilder.tag(Tags.ACCOUNT_TYPE, metric.getAccountType().toString());
-    pointBuilder.tag(Tags.ACCOUNT, metric.getAccount());
+    metric.getDeviceMetadata().forEach(pointBuilder::tag);
+    pointBuilder.tag(Tags.TENANT, tenant);
     pointBuilder.tag(Tags.RESOURCE_ID, metric.getDevice());
     if (StringUtils.hasText(metric.getDeviceLabel())) {
       pointBuilder.tag(Tags.RESOURCE_LABEL, metric.getDeviceLabel());

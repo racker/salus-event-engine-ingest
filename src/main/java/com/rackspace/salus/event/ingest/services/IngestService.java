@@ -69,7 +69,7 @@ public class IngestService implements Closeable {
   public void consumeMetric(ExternalMetric metric) {
     log.trace("Ingesting metric={}", metric);
 
-    final String tenant = String.join(":",
+    final String qualifiedAccount = String.join(":",
         metric.getAccountType().toString(),
         metric.getAccount()
         );
@@ -78,7 +78,7 @@ public class IngestService implements Closeable {
         .pickRecipient(metric.getAccount(), metric.getDevice(), metric.getCollectionName());
 
     log.debug("Sending measurement={} for tenant={} to engine={}",
-        metric.getCollectionName(), tenant, engineInstance);
+        metric.getCollectionName(), qualifiedAccount, engineInstance);
 
     final InfluxDB kapacitorWriter = influxConnectionPool.getConnection(engineInstance);
 
@@ -89,7 +89,7 @@ public class IngestService implements Closeable {
     metric.getSystemMetadata().forEach(pointBuilder::tag);
     metric.getCollectionMetadata().forEach(pointBuilder::tag);
     metric.getDeviceMetadata().forEach(pointBuilder::tag);
-    pointBuilder.tag(Tags.TENANT, tenant);
+    pointBuilder.tag(Tags.QUALIFIED_ACCOUNT, qualifiedAccount);
     pointBuilder.tag(Tags.RESOURCE_ID, metric.getDevice());
     if (StringUtils.hasText(metric.getDeviceLabel())) {
       pointBuilder.tag(Tags.RESOURCE_LABEL, metric.getDeviceLabel());

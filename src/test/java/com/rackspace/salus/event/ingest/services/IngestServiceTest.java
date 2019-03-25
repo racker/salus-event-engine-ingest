@@ -117,7 +117,7 @@ public class IngestServiceTest {
 
     Point point = Point.measurement("cpu")
         .time(1522156506497L, TimeUnit.MILLISECONDS)
-        .tag(Tags.TENANT, "CORE:123456")
+        .tag(Tags.QUALIFIED_ACCOUNT, "CORE:123456")
         .tag(Tags.MONITORING_SYSTEM, MonitoringSystem.SALUS.toString())
         .tag(Tags.RESOURCE_ID, "r-1")
         .tag(Tags.RESOURCE_LABEL, "resourceLabel-1")

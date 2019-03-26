@@ -16,6 +16,8 @@
 
 package com.rackspace.salus.event.ingest.services;
 
+import static com.rackspace.salus.telemetry.model.LabelNamespaces.MONITORING_SYSTEM_METADATA;
+
 import com.rackspace.monplat.protocol.ExternalMetric;
 import com.rackspace.salus.common.messaging.KafkaTopicProperties;
 import com.rackspace.salus.event.common.InfluxScope;
@@ -23,6 +25,7 @@ import com.rackspace.salus.event.common.Tags;
 import com.rackspace.salus.event.discovery.EngineInstance;
 import com.rackspace.salus.event.discovery.EventEnginePicker;
 import com.rackspace.salus.event.ingest.config.EventIngestProperties;
+import com.rackspace.salus.telemetry.model.LabelNamespaces;
 import java.io.Closeable;
 import java.io.IOException;
 import java.time.Instant;
@@ -88,7 +91,12 @@ public class IngestService implements Closeable {
     final Builder pointBuilder = Point.measurement(metric.getCollectionName())
         .time(timestamp.toEpochMilli(), TimeUnit.MILLISECONDS);
 
-    metric.getSystemMetadata().forEach(pointBuilder::tag);
+    metric.getSystemMetadata()
+        .forEach((name, value) ->
+            pointBuilder.tag(
+                LabelNamespaces.applyNamespace(MONITORING_SYSTEM_METADATA, value),
+                value
+            ));
     metric.getCollectionMetadata().forEach(pointBuilder::tag);
     metric.getDeviceMetadata().forEach(pointBuilder::tag);
     pointBuilder.tag(Tags.QUALIFIED_ACCOUNT, qualifiedAccount);

@@ -69,9 +69,11 @@ public class IngestService implements Closeable {
   public void consumeMetric(ExternalMetric metric) {
     log.trace("Ingesting metric={}", metric);
 
-    final String qualifiedAccount = String.join(":",
-        metric.getAccountType().toString(),
-        metric.getAccount()
+    final String qualifiedAccount =
+        String.join(
+            eventIngestProperties.getQualifiedAccountDelimiter(),
+            metric.getAccountType().toString(),
+            metric.getAccount()
         );
 
     final EngineInstance engineInstance = eventEnginePicker

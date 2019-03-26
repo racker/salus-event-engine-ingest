@@ -25,7 +25,7 @@ import org.influxdb.InfluxDBFactory;
 import org.springframework.stereotype.Service;
 
 @Service
-public class InfluxConnectionPool implements Closeable {
+public class KapacitorConnectionPool implements Closeable {
   private final ConcurrentHashMap<EngineInstance, InfluxDB> influxConnections =
       new ConcurrentHashMap<>();
 

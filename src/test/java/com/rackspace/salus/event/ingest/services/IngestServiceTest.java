@@ -16,6 +16,7 @@
 
 package com.rackspace.salus.event.ingest.services;
 
+import static com.rackspace.salus.telemetry.model.LabelNamespaces.MONITORING_SYSTEM_METADATA;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.mockito.ArgumentMatchers.any;
@@ -33,6 +34,7 @@ import com.rackspace.salus.event.common.Tags;
 import com.rackspace.salus.event.discovery.EngineInstance;
 import com.rackspace.salus.event.discovery.EventEnginePicker;
 import com.rackspace.salus.event.ingest.config.EventIngestProperties;
+import com.rackspace.salus.telemetry.model.LabelNamespaces;
 import java.util.concurrent.TimeUnit;
 import org.influxdb.InfluxDB;
 import org.influxdb.dto.Point;
@@ -69,7 +71,7 @@ public class IngestServiceTest {
   EventEnginePicker eventEnginePicker;
 
   @MockBean
-  InfluxConnectionPool influxConnectionPool;
+  KapacitorConnectionPool kapacitorConnectionPool;
 
   @Autowired
   IngestService ingestService;
@@ -102,7 +104,7 @@ public class IngestServiceTest {
             new EngineInstance("host", 123, 3)
         );
 
-    when(influxConnectionPool.getConnection(any()))
+    when(kapacitorConnectionPool.getConnection(any()))
         .thenReturn(influxDB);
 
     ingestService.consumeMetric(metric);
@@ -113,7 +115,7 @@ public class IngestServiceTest {
         eq("cpu")
     );
 
-    verify(influxConnectionPool).getConnection(eq(new EngineInstance("host", 123, 3)));
+    verify(kapacitorConnectionPool).getConnection(eq(new EngineInstance("host", 123, 3)));
 
     Point point = Point.measurement("cpu")
         .time(1522156506497L, TimeUnit.MILLISECONDS)
@@ -121,11 +123,11 @@ public class IngestServiceTest {
         .tag(Tags.MONITORING_SYSTEM, MonitoringSystem.SALUS.toString())
         .tag(Tags.RESOURCE_ID, "r-1")
         .tag(Tags.RESOURCE_LABEL, "resourceLabel-1")
-        .tag("skey", "sval")
+        .tag(LabelNamespaces.applyNamespace(MONITORING_SYSTEM_METADATA, "skey"), "sval")
         .tag("dkey", "dval")
         .tag("ckey", "cval")
         .addField("ivalue", 5L)
-        .addField("fvalue", 3.14)
+        .addField("fvalue", 3.14D)
         .addField("svalue", "testing")
         .build();
 
@@ -135,6 +137,6 @@ public class IngestServiceTest {
         eq(point)
     );
 
-    verifyNoMoreInteractions(eventEnginePicker, influxConnectionPool, influxDB);
+    verifyNoMoreInteractions(eventEnginePicker, kapacitorConnectionPool, influxDB);
   }
 }

@@ -48,7 +48,7 @@ public class IngestService implements Closeable {
   private final KafkaTopicProperties kafkaTopicProperties;
   private final EventIngestProperties eventIngestProperties;
   private final EventEnginePicker eventEnginePicker;
-  private final InfluxConnectionPool influxConnectionPool;
+  private final KapacitorConnectionPool kapacitorConnectionPool;
   private final ConcurrentHashMap<EngineInstance, InfluxDB> influxConnections =
       new ConcurrentHashMap<>();
   private static final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ISO_INSTANT;
@@ -57,11 +57,11 @@ public class IngestService implements Closeable {
   public IngestService(KafkaTopicProperties kafkaTopicProperties,
                        EventIngestProperties eventIngestProperties,
                        EventEnginePicker eventEnginePicker,
-                       InfluxConnectionPool influxConnectionPool) {
+                       KapacitorConnectionPool kapacitorConnectionPool) {
     this.kafkaTopicProperties = kafkaTopicProperties;
     this.eventIngestProperties = eventIngestProperties;
     this.eventEnginePicker = eventEnginePicker;
-    this.influxConnectionPool = influxConnectionPool;
+    this.kapacitorConnectionPool = kapacitorConnectionPool;
   }
 
   public String getTopic() {
@@ -85,7 +85,9 @@ public class IngestService implements Closeable {
     log.debug("Sending measurement={} for tenant={} to engine={}",
         metric.getCollectionName(), qualifiedAccount, engineInstance);
 
-    final InfluxDB kapacitorWriter = influxConnectionPool.getConnection(engineInstance);
+    // Kapacitor provides a write endpoint that is compatible with InfluxDB, which is why
+    // a native InfluxDB client is used here.
+    final InfluxDB kapacitorWriter = kapacitorConnectionPool.getConnection(engineInstance);
 
     final Instant timestamp = Instant.parse(metric.getTimestamp());
     final Builder pointBuilder = Point.measurement(metric.getCollectionName())
@@ -94,7 +96,7 @@ public class IngestService implements Closeable {
     metric.getSystemMetadata()
         .forEach((name, value) ->
             pointBuilder.tag(
-                LabelNamespaces.applyNamespace(MONITORING_SYSTEM_METADATA, value),
+                LabelNamespaces.applyNamespace(MONITORING_SYSTEM_METADATA, name),
                 value
             ));
     metric.getCollectionMetadata().forEach(pointBuilder::tag);

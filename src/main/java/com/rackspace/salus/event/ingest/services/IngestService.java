@@ -16,6 +16,8 @@
 
 package com.rackspace.salus.event.ingest.services;
 
+import static com.rackspace.salus.telemetry.model.LabelNamespaces.MONITORING_SYSTEM_METADATA;
+
 import com.rackspace.monplat.protocol.ExternalMetric;
 import com.rackspace.salus.common.messaging.KafkaTopicProperties;
 import com.rackspace.salus.event.common.InfluxScope;
@@ -23,6 +25,7 @@ import com.rackspace.salus.event.common.Tags;
 import com.rackspace.salus.event.discovery.EngineInstance;
 import com.rackspace.salus.event.discovery.EventEnginePicker;
 import com.rackspace.salus.event.ingest.config.EventIngestProperties;
+import com.rackspace.salus.telemetry.model.LabelNamespaces;
 import java.io.Closeable;
 import java.io.IOException;
 import java.time.Instant;
@@ -31,7 +34,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 import org.influxdb.InfluxDB;
-import org.influxdb.InfluxDBFactory;
 import org.influxdb.dto.Point;
 import org.influxdb.dto.Point.Builder;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,6 +48,7 @@ public class IngestService implements Closeable {
   private final KafkaTopicProperties kafkaTopicProperties;
   private final EventIngestProperties eventIngestProperties;
   private final EventEnginePicker eventEnginePicker;
+  private final KapacitorConnectionPool kapacitorConnectionPool;
   private final ConcurrentHashMap<EngineInstance, InfluxDB> influxConnections =
       new ConcurrentHashMap<>();
   private static final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ISO_INSTANT;
@@ -53,10 +56,12 @@ public class IngestService implements Closeable {
   @Autowired
   public IngestService(KafkaTopicProperties kafkaTopicProperties,
                        EventIngestProperties eventIngestProperties,
-                       EventEnginePicker eventEnginePicker) {
+                       EventEnginePicker eventEnginePicker,
+                       KapacitorConnectionPool kapacitorConnectionPool) {
     this.kafkaTopicProperties = kafkaTopicProperties;
     this.eventIngestProperties = eventIngestProperties;
     this.eventEnginePicker = eventEnginePicker;
+    this.kapacitorConnectionPool = kapacitorConnectionPool;
   }
 
   public String getTopic() {
@@ -67,28 +72,36 @@ public class IngestService implements Closeable {
   public void consumeMetric(ExternalMetric metric) {
     log.trace("Ingesting metric={}", metric);
 
+    final String qualifiedAccount =
+        String.join(
+            eventIngestProperties.getQualifiedAccountDelimiter(),
+            metric.getAccountType().toString(),
+            metric.getAccount()
+        );
+
     final EngineInstance engineInstance = eventEnginePicker
         .pickRecipient(metric.getAccount(), metric.getDevice(), metric.getCollectionName());
 
     log.debug("Sending measurement={} for tenant={} to engine={}",
-        metric.getCollectionName(), metric.getAccount(), engineInstance);
+        metric.getCollectionName(), qualifiedAccount, engineInstance);
 
-    final InfluxDB kapacitorWriter = influxConnections.computeIfAbsent(
-        engineInstance,
-        key ->
-            InfluxDBFactory.connect(
-                String.format("http://%s:%d", key.getHost(), key.getPort())
-            )
-    );
+    // Kapacitor provides a write endpoint that is compatible with InfluxDB, which is why
+    // a native InfluxDB client is used here.
+    final InfluxDB kapacitorWriter = kapacitorConnectionPool.getConnection(engineInstance);
 
     final Instant timestamp = Instant.parse(metric.getTimestamp());
     final Builder pointBuilder = Point.measurement(metric.getCollectionName())
         .time(timestamp.toEpochMilli(), TimeUnit.MILLISECONDS);
 
-    metric.getSystemMetadata().forEach(pointBuilder::tag);
+    metric.getSystemMetadata()
+        .forEach((name, value) ->
+            pointBuilder.tag(
+                LabelNamespaces.applyNamespace(MONITORING_SYSTEM_METADATA, name),
+                value
+            ));
     metric.getCollectionMetadata().forEach(pointBuilder::tag);
-    pointBuilder.tag(Tags.ACCOUNT_TYPE, metric.getAccountType().toString());
-    pointBuilder.tag(Tags.ACCOUNT, metric.getAccount());
+    metric.getDeviceMetadata().forEach(pointBuilder::tag);
+    pointBuilder.tag(Tags.QUALIFIED_ACCOUNT, qualifiedAccount);
     pointBuilder.tag(Tags.RESOURCE_ID, metric.getDevice());
     if (StringUtils.hasText(metric.getDeviceLabel())) {
       pointBuilder.tag(Tags.RESOURCE_LABEL, metric.getDeviceLabel());

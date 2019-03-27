@@ -26,4 +26,10 @@ import org.springframework.stereotype.Component;
 public class EventIngestProperties {
   String influxDbDatabaseOverride;
   String influxDbRetentionPolicyOverride;
+
+  /**
+   * The delimiter to use when constructing a qualified account value.
+   */
+  String qualifiedAccountDelimiter = ":";
+
 }

@@ -1,0 +1,12 @@
+# This app config can be used to operate against a local Docker for Desktop kubernetes cluster
+logging:
+  level:
+    com.rackspace.salus.event: debug
+event:
+  discovery:
+    kubernetes-strategy:
+      api-url: https://localhost:6443
+      service-name: kapacitor
+    partitions: 2
+server:
+  port: 0

@@ -33,6 +33,7 @@ import com.rackspace.salus.event.common.InfluxScope;
 import com.rackspace.salus.event.common.Tags;
 import com.rackspace.salus.event.discovery.EngineInstance;
 import com.rackspace.salus.event.discovery.EventEnginePicker;
+import com.rackspace.salus.event.discovery.NoPartitionsAvailableException;
 import com.rackspace.salus.event.ingest.config.EventIngestProperties;
 import com.rackspace.salus.telemetry.model.LabelNamespaces;
 import java.util.concurrent.TimeUnit;
@@ -80,7 +81,7 @@ public class IngestServiceTest {
   InfluxDB influxDB;
 
   @Test
-  public void consumeMetric() {
+  public void consumeMetric() throws NoPartitionsAvailableException {
     final ExternalMetric metric = ExternalMetric.newBuilder()
         .setTimestamp("2018-03-27T13:15:06.497Z")
         .setAccountType(AccountType.CORE)

@@ -7,6 +7,5 @@ event:
     kubernetes-strategy:
       api-url: https://localhost:6443
       service-name: kapacitor
-    partitions: 2
 server:
   port: 0

@@ -24,6 +24,7 @@ import com.rackspace.salus.event.common.InfluxScope;
 import com.rackspace.salus.event.common.Tags;
 import com.rackspace.salus.event.discovery.EngineInstance;
 import com.rackspace.salus.event.discovery.EventEnginePicker;
+import com.rackspace.salus.event.discovery.NoPartitionsAvailableException;
 import com.rackspace.salus.event.ingest.config.EventIngestProperties;
 import com.rackspace.salus.telemetry.model.LabelNamespaces;
 import java.io.Closeable;
@@ -79,8 +80,14 @@ public class IngestService implements Closeable {
             metric.getAccount()
         );
 
-    final EngineInstance engineInstance = eventEnginePicker
-        .pickRecipient(metric.getAccount(), metric.getDevice(), metric.getCollectionName());
+    final EngineInstance engineInstance;
+    try {
+      engineInstance = eventEnginePicker
+          .pickRecipient(metric.getAccount(), metric.getDevice(), metric.getCollectionName());
+    } catch (NoPartitionsAvailableException e) {
+      log.warn("No instances were available for routing of metric={}", metric);
+      return;
+    }
 
     log.debug("Sending measurement={} for tenant={} to engine={}",
         metric.getCollectionName(), qualifiedAccount, engineInstance);

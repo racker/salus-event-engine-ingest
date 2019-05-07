@@ -111,7 +111,7 @@ public class IngestServiceTest {
     ingestService.consumeMetric(metric);
 
     verify(eventEnginePicker).pickRecipient(
-        eq("123456"),
+        eq("CORE:123456"),
         eq("r-1"),
         eq("cpu")
     );
@@ -133,7 +133,7 @@ public class IngestServiceTest {
         .build();
 
     verify(influxDB).write(
-        eq("123456"),
+        eq("CORE:123456"),
         eq(InfluxScope.INGEST_RETENTION_POLICY),
         eq(point)
     );

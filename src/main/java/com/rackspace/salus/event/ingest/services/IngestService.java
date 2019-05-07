@@ -81,16 +81,17 @@ public class IngestService implements Closeable {
         );
 
     final EngineInstance engineInstance;
+    final String resourceId = metric.getDevice();
     try {
       engineInstance = eventEnginePicker
-          .pickRecipient(metric.getAccount(), metric.getDevice(), metric.getCollectionName());
+          .pickRecipient(qualifiedAccount, resourceId, metric.getCollectionName());
     } catch (NoPartitionsAvailableException e) {
       log.warn("No instances were available for routing of metric={}", metric);
       return;
     }
 
-    log.debug("Sending measurement={} for tenant={} to engine={}",
-        metric.getCollectionName(), qualifiedAccount, engineInstance);
+    log.debug("Sending measurement={} for tenant={} resourceId={} to engine={}",
+        metric.getCollectionName(), qualifiedAccount, resourceId, engineInstance);
 
     // Kapacitor provides a write endpoint that is compatible with InfluxDB, which is why
     // a native InfluxDB client is used here.
@@ -109,7 +110,7 @@ public class IngestService implements Closeable {
     metric.getCollectionMetadata().forEach(pointBuilder::tag);
     metric.getDeviceMetadata().forEach(pointBuilder::tag);
     pointBuilder.tag(Tags.QUALIFIED_ACCOUNT, qualifiedAccount);
-    pointBuilder.tag(Tags.RESOURCE_ID, metric.getDevice());
+    pointBuilder.tag(Tags.RESOURCE_ID, resourceId);
     if (StringUtils.hasText(metric.getDeviceLabel())) {
       pointBuilder.tag(Tags.RESOURCE_LABEL, metric.getDeviceLabel());
     }
@@ -120,7 +121,7 @@ public class IngestService implements Closeable {
     metric.getSvalues().forEach(pointBuilder::addField);
 
     kapacitorWriter.write(
-        deriveIngestDatabase(metric),
+        deriveIngestDatabase(qualifiedAccount),
         deriveRetentionPolicy(),
         pointBuilder.build());
   }
@@ -132,9 +133,9 @@ public class IngestService implements Closeable {
     return StringUtils.hasText(override) ? override : InfluxScope.INGEST_RETENTION_POLICY;
   }
 
-  private String deriveIngestDatabase(ExternalMetric metric) {
+  private String deriveIngestDatabase(String qualifiedAccountId) {
     final String dbOverride = eventIngestProperties.getInfluxDbDatabaseOverride();
-    return StringUtils.hasText(dbOverride) ? dbOverride : metric.getAccount();
+    return StringUtils.hasText(dbOverride) ? dbOverride : qualifiedAccountId;
   }
 
   @Override

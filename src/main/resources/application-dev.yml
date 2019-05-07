@@ -1,12 +1,12 @@
 
 logging:
   level:
-    com.rackspace.salus.event.ingest: debug
+    com.rackspace.salus.event.ingest: trace
 event:
   discovery:
     port-strategy:
       host: localhost
       starting-port: 9192
-    partitions: 2
+      partitions: 2
 server:
   port: 0

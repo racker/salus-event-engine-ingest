@@ -29,7 +29,7 @@ steps:
 
   - id: VERIFY
     name: 'gcr.io/cloud-builders/mvn'
-    args: ['verify', '-s', '.mvn/settings.xml']
+    args: ['-B', 'verify', '-s', '.mvn/settings.xml']
     volumes:
     - name: user.home
       path: /root

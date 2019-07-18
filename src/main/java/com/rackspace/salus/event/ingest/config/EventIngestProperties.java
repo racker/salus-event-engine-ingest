@@ -20,7 +20,7 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
-@ConfigurationProperties("event.ingest")
+@ConfigurationProperties("salus.event.ingest")
 @Component
 @Data
 public class EventIngestProperties {

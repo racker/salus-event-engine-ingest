@@ -7,7 +7,7 @@ server:
 spring:
   application:
     name: metrics-ingest-influx
-event:
+salus.event:
   discovery:
     # a port strategy of 1 partition to port 8086 basically forces it to send to the one InfluxDB
     partitions: 1

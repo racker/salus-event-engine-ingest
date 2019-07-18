@@ -1,9 +1,11 @@
+salus:
+  environment: local
 spring:
   kafka:
     consumer:
       value-deserializer: com.rackspace.monplat.protocol.ExternalMetricDeserializer
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      group-id: ${spring.application.name}
+      group-id: ${spring.application.name}-${salus.environment}
       auto-offset-reset: latest
   application:
     name: salus-event-engine-ingest

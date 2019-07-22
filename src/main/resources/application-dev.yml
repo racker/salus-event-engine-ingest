@@ -2,7 +2,7 @@
 logging:
   level:
     com.rackspace.salus.event.ingest: trace
-event:
+salus.event:
   discovery:
     port-strategy:
       host: localhost

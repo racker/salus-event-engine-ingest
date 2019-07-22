@@ -2,7 +2,7 @@
 logging:
   level:
     com.rackspace.salus.event: debug
-event:
+salus.event:
   discovery:
     kubernetes-strategy:
       api-url: https://localhost:6443

@@ -27,12 +27,11 @@ import static org.mockito.Mockito.when;
 
 import com.rackspace.monplat.protocol.ExternalMetric;
 import com.rackspace.monplat.protocol.ExternalMetricSerializer;
-import com.rackspace.salus.common.messaging.KafkaTopicProperties;
+import com.rackspace.salus.common.messaging.EnableSalusKafkaMessaging;
 import com.rackspace.salus.event.discovery.EngineInstance;
 import com.rackspace.salus.event.discovery.EventEnginePicker;
 import com.rackspace.salus.event.discovery.NoPartitionsAvailableException;
 import com.rackspace.salus.event.ingest.config.EventIngestProperties;
-import com.rackspace.salus.event.ingest.config.KafkaErrorConfig;
 import java.nio.charset.StandardCharsets;
 import org.influxdb.InfluxDB;
 import org.junit.Test;
@@ -55,18 +54,17 @@ import org.springframework.test.context.junit4.SpringRunner;
 @RunWith(SpringRunner.class)
 @SpringBootTest(
     classes = {
-        KafkaErrorConfig.class,
         IngestService.class,
-        KafkaTopicProperties.class,
         EventIngestProperties.class
     },
     properties = {
         "salus.kafka.topics.metrics="+ IngestServiceKafkaTest.TOPIC,
         // override app default so that we can produce before consumer is ready
         "spring.kafka.consumer.auto-offset-reset=earliest",
-        "logging.level.com.rackspace.salus.event.ingest=debug"
+        "logging.level.com.rackspace.salus.common.messaging.KafkaErrorConfig=debug"
     }
 )
+@EnableSalusKafkaMessaging
 @ImportAutoConfiguration({
     KafkaAutoConfiguration.class
 })

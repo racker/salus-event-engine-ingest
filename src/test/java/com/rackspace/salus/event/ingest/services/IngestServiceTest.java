@@ -16,29 +16,22 @@
 
 package com.rackspace.salus.event.ingest.services;
 
-import static com.rackspace.salus.telemetry.model.LabelNamespaces.MONITORING_SYSTEM_METADATA;
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonMap;
+import static com.rackspace.salus.event.ingest.services.MetricTestUtils.verifyEventEnginePicker;
+import static com.rackspace.salus.event.ingest.services.MetricTestUtils.verifyInfluxPointWritten;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-import com.rackspace.monplat.protocol.AccountType;
 import com.rackspace.monplat.protocol.ExternalMetric;
-import com.rackspace.monplat.protocol.MonitoringSystem;
 import com.rackspace.salus.common.messaging.KafkaTopicProperties;
-import com.rackspace.salus.event.common.InfluxScope;
-import com.rackspace.salus.event.common.Tags;
 import com.rackspace.salus.event.discovery.EngineInstance;
 import com.rackspace.salus.event.discovery.EventEnginePicker;
 import com.rackspace.salus.event.discovery.NoPartitionsAvailableException;
 import com.rackspace.salus.event.ingest.config.EventIngestProperties;
-import com.rackspace.salus.telemetry.model.LabelNamespaces;
-import java.util.concurrent.TimeUnit;
 import org.influxdb.InfluxDB;
-import org.influxdb.dto.Point;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -50,6 +43,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.junit4.SpringRunner;
 
+/**
+ * These unit tests focus on the behavior of {@link IngestService} without the involvement of Kafka.
+ */
 @RunWith(SpringRunner.class)
 @SpringBootTest
 public class IngestServiceTest {
@@ -82,23 +78,7 @@ public class IngestServiceTest {
 
   @Test
   public void consumeMetric() throws NoPartitionsAvailableException {
-    final ExternalMetric metric = ExternalMetric.newBuilder()
-        .setTimestamp("2018-03-27T13:15:06.497Z")
-        .setAccountType(AccountType.CORE)
-        .setAccount("123456")
-        .setMonitoringSystem(MonitoringSystem.SALUS)
-        .setDevice("r-1")
-        .setDeviceLabel("resourceLabel-1")
-        .setSystemMetadata(singletonMap("skey", "sval"))
-        .setDeviceMetadata(singletonMap("dkey", "dval"))
-        .setCollectionName("cpu")
-        .setCollectionMetadata(singletonMap("ckey", "cval"))
-        .setCollectionTarget("")
-        .setIvalues(singletonMap("ivalue", 5L))
-        .setFvalues(singletonMap("fvalue", 3.14))
-        .setSvalues(singletonMap("svalue", "testing"))
-        .setUnits(emptyMap())
-        .build();
+    final ExternalMetric metric = MetricTestUtils.buildMetric();
 
     when(eventEnginePicker.pickRecipient(any(), any(), any()))
         .thenReturn(
@@ -110,34 +90,13 @@ public class IngestServiceTest {
 
     ingestService.consumeMetric(metric);
 
-    verify(eventEnginePicker).pickRecipient(
-        eq("CORE:123456"),
-        eq("r-1"),
-        eq("cpu")
-    );
+    verifyEventEnginePicker(eventEnginePicker, times(1));
 
     verify(kapacitorConnectionPool).getConnection(eq(new EngineInstance("host", 123, 3)));
 
-    Point point = Point.measurement("cpu")
-        .time(1522156506497L, TimeUnit.MILLISECONDS)
-        .tag(Tags.QUALIFIED_ACCOUNT, "CORE:123456")
-        .tag(Tags.MONITORING_SYSTEM, MonitoringSystem.SALUS.toString())
-        .tag(Tags.RESOURCE_ID, "r-1")
-        .tag(Tags.RESOURCE_LABEL, "resourceLabel-1")
-        .tag(LabelNamespaces.applyNamespace(MONITORING_SYSTEM_METADATA, "skey"), "sval")
-        .tag("dkey", "dval")
-        .tag("ckey", "cval")
-        .addField("ivalue", 5L)
-        .addField("fvalue", 3.14D)
-        .addField("svalue", "testing")
-        .build();
-
-    verify(influxDB).write(
-        eq("CORE:123456"),
-        eq(InfluxScope.INGEST_RETENTION_POLICY),
-        eq(point)
-    );
+    verifyInfluxPointWritten(influxDB, times(1));
 
     verifyNoMoreInteractions(eventEnginePicker, kapacitorConnectionPool, influxDB);
   }
+
 }

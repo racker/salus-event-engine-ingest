@@ -90,9 +90,6 @@ public class IngestService implements Closeable {
       return;
     }
 
-    log.debug("Sending measurement={} for tenant={} resourceId={} to engine={}",
-        metric.getCollectionName(), qualifiedAccount, resourceId, engineInstance);
-
     // Kapacitor provides a write endpoint that is compatible with InfluxDB, which is why
     // a native InfluxDB client is used here.
     final InfluxDB kapacitorWriter = kapacitorConnectionPool.getConnection(engineInstance);
@@ -120,10 +117,17 @@ public class IngestService implements Closeable {
     metric.getFvalues().forEach(pointBuilder::addField);
     metric.getSvalues().forEach(pointBuilder::addField);
 
+
+    final Point influxPoint = pointBuilder.build();
+
+    log.trace("Sending influxPoint={} for tenant={} resourceId={} to engine={}",
+        influxPoint, qualifiedAccount, resourceId, engineInstance);
+
     kapacitorWriter.write(
         deriveIngestDatabase(qualifiedAccount),
         deriveRetentionPolicy(),
-        pointBuilder.build());
+        influxPoint
+    );
   }
 
   private String deriveRetentionPolicy() {

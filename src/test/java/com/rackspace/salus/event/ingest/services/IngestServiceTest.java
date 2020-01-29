@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Rackspace US, Inc.
+ * Copyright 2020 Rackspace US, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ import org.springframework.test.context.junit4.SpringRunner;
 public class IngestServiceTest {
 
   @Configuration
-  @Import({IngestService.class})
+  @Import({IngestService.class, MeterRegistryTestConfig.class})
   public static class TestConfig {
     @Bean
     public KafkaTopicProperties kafkaTopicProperties() {

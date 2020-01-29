@@ -41,6 +41,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 
 @Service
 @Slf4j
@@ -53,17 +55,22 @@ public class IngestService implements Closeable {
   private final ConcurrentHashMap<EngineInstance, InfluxDB> influxConnections =
       new ConcurrentHashMap<>();
   private static final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ISO_INSTANT;
+  private final Counter metricsConsumed;
+  private final Counter metricsWrittenToKafka;
 
   @Autowired
   public IngestService(KafkaTopicProperties kafkaTopicProperties,
                        EventIngestProperties eventIngestProperties,
                        EventEnginePicker eventEnginePicker,
-                       KapacitorConnectionPool kapacitorConnectionPool) {
+                       KapacitorConnectionPool kapacitorConnectionPool,
+                       MeterRegistry meterRegistry) {
     this.kafkaTopicProperties = kafkaTopicProperties;
     this.eventIngestProperties = eventIngestProperties;
     this.eventEnginePicker = eventEnginePicker;
     this.kapacitorConnectionPool = kapacitorConnectionPool;
-  }
+    metricsConsumed = meterRegistry.counter("ingest","operation", "consume");
+    metricsWrittenToKafka = meterRegistry.counter("ingest","operation", "written");
+    }
 
   public String getTopic() {
     return kafkaTopicProperties.getMetrics();
@@ -72,6 +79,7 @@ public class IngestService implements Closeable {
   @KafkaListener(topics = "#{__listener.topic}")
   public void consumeMetric(ExternalMetric metric) {
     log.trace("Ingesting metric={}", metric);
+    metricsConsumed.increment();
 
     final String qualifiedAccount =
         String.join(
@@ -123,6 +131,7 @@ public class IngestService implements Closeable {
     log.trace("Sending influxPoint={} for tenant={} resourceId={} to engine={}",
         influxPoint, qualifiedAccount, resourceId, engineInstance);
 
+    metricsWrittenToKafka.increment();
     kapacitorWriter.write(
         deriveIngestDatabase(qualifiedAccount),
         deriveRetentionPolicy(),

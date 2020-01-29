@@ -55,7 +55,8 @@ import org.springframework.test.context.junit4.SpringRunner;
 @SpringBootTest(
     classes = {
         IngestService.class,
-        EventIngestProperties.class
+        EventIngestProperties.class,
+        MeterRegistryTestConfig.class
     },
     properties = {
         "salus.kafka.topics.metrics="+ IngestServiceKafkaTest.TOPIC,

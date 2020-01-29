@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Rackspace US, Inc.
+ * Copyright 2020 Rackspace US, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,7 +55,8 @@ import org.springframework.test.context.junit4.SpringRunner;
 @SpringBootTest(
     classes = {
         IngestService.class,
-        EventIngestProperties.class
+        EventIngestProperties.class,
+        MeterRegistryTestConfig.class
     },
     properties = {
         "salus.kafka.topics.metrics="+ IngestServiceKafkaTest.TOPIC,

@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Rackspace US, Inc.
+ * Copyright 2020 Rackspace US, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,6 +41,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 
 @Service
 @Slf4j
@@ -53,17 +55,22 @@ public class IngestService implements Closeable {
   private final ConcurrentHashMap<EngineInstance, InfluxDB> influxConnections =
       new ConcurrentHashMap<>();
   private static final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ISO_INSTANT;
+  private final Counter metricsConsumed;
+  private final Counter metricsWrittenToKapacitor;
 
   @Autowired
   public IngestService(KafkaTopicProperties kafkaTopicProperties,
                        EventIngestProperties eventIngestProperties,
                        EventEnginePicker eventEnginePicker,
-                       KapacitorConnectionPool kapacitorConnectionPool) {
+                       KapacitorConnectionPool kapacitorConnectionPool,
+                       MeterRegistry meterRegistry) {
     this.kafkaTopicProperties = kafkaTopicProperties;
     this.eventIngestProperties = eventIngestProperties;
     this.eventEnginePicker = eventEnginePicker;
     this.kapacitorConnectionPool = kapacitorConnectionPool;
-  }
+    metricsConsumed = meterRegistry.counter("ingest","operation", "consume");
+    metricsWrittenToKapacitor = meterRegistry.counter("ingest","operation", "written");
+    }
 
   public String getTopic() {
     return kafkaTopicProperties.getMetrics();
@@ -72,6 +79,7 @@ public class IngestService implements Closeable {
   @KafkaListener(topics = "#{__listener.topic}")
   public void consumeMetric(ExternalMetric metric) {
     log.trace("Ingesting metric={}", metric);
+    metricsConsumed.increment();
 
     final String qualifiedAccount =
         String.join(
@@ -128,6 +136,7 @@ public class IngestService implements Closeable {
         deriveRetentionPolicy(),
         influxPoint
     );
+    metricsWrittenToKapacitor.increment();
   }
 
   private String deriveRetentionPolicy() {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Rackspace US, Inc.
+ * Copyright 2020 Rackspace US, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ public class IngestService implements Closeable {
   private final KapacitorConnectionPool kapacitorConnectionPool;
   private final ConcurrentHashMap<EngineInstance, InfluxDB> influxConnections =
       new ConcurrentHashMap<>();
-  private static final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ISO_INSTANT;
+  private static final DateTimeFormatter xdateTimeFormatter = DateTimeFormatter.ISO_INSTANT;
   private final Counter metricsConsumed;
   private final Counter metricsWrittenToKafka;
 

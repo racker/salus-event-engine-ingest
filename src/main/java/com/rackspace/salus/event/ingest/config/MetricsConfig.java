@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Rackspace US, Inc.
+ * Copyright 2020 Rackspace US, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,11 +38,9 @@ public class MetricsConfig {
   @Bean
   public MeterRegistryCustomizer<MeterRegistry> metricsCommonTags() {
     return registry ->
-    {
-      registry.config().commonTags(
-          "app", buildProperties != null ? buildProperties.getName() : "salus-event-ingestor",
-          "host", ourHostname);
-    };
+        registry.config().commonTags(
+            "app", buildProperties != null ? buildProperties.getName() : "salus-event-ingestor",
+            "host", ourHostname);
   }
 
 }

@@ -54,9 +54,9 @@ public class IngestService implements Closeable {
   private final KapacitorConnectionPool kapacitorConnectionPool;
   private final ConcurrentHashMap<EngineInstance, InfluxDB> influxConnections =
       new ConcurrentHashMap<>();
-  private static final DateTimeFormatter xdateTimeFormatter = DateTimeFormatter.ISO_INSTANT;
+  private static final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ISO_INSTANT;
   private final Counter metricsConsumed;
-  private final Counter metricsWrittenToKafka;
+  private final Counter metricsWrittenToKapacitor;
 
   @Autowired
   public IngestService(KafkaTopicProperties kafkaTopicProperties,
@@ -69,7 +69,7 @@ public class IngestService implements Closeable {
     this.eventEnginePicker = eventEnginePicker;
     this.kapacitorConnectionPool = kapacitorConnectionPool;
     metricsConsumed = meterRegistry.counter("ingest","operation", "consume");
-    metricsWrittenToKafka = meterRegistry.counter("ingest","operation", "written");
+    metricsWrittenToKapacitor = meterRegistry.counter("ingest","operation", "written");
     }
 
   public String getTopic() {
@@ -131,12 +131,12 @@ public class IngestService implements Closeable {
     log.trace("Sending influxPoint={} for tenant={} resourceId={} to engine={}",
         influxPoint, qualifiedAccount, resourceId, engineInstance);
 
-    metricsWrittenToKafka.increment();
     kapacitorWriter.write(
         deriveIngestDatabase(qualifiedAccount),
         deriveRetentionPolicy(),
         influxPoint
     );
+    metricsWrittenToKapacitor.increment();
   }
 
   private String deriveRetentionPolicy() {

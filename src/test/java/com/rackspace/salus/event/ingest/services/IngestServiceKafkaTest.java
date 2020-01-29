@@ -87,7 +87,7 @@ public class IngestServiceKafkaTest {
   @Mock
   InfluxDB influxDB;
 
-  @`Autowired
+  @Autowired
   IngestService ingestService;
 
   @Autowired

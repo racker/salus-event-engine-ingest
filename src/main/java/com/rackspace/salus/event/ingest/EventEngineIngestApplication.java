@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Rackspace US, Inc.
+ * Copyright 2020 Rackspace US, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package com.rackspace.salus.event.ingest;
 
+import com.rackspace.salus.common.config.AutoConfigureSalusAppMetrics;
 import com.rackspace.salus.common.messaging.EnableSalusKafkaMessaging;
 import com.rackspace.salus.common.util.DumpConfigProperties;
 import com.rackspace.salus.event.discovery.DiscoveryServiceModule;
@@ -26,6 +27,7 @@ import org.springframework.context.annotation.Import;
 @SpringBootApplication
 @EnableSalusKafkaMessaging
 @Import(DiscoveryServiceModule.class)
+@AutoConfigureSalusAppMetrics
 public class EventEngineIngestApplication {
 
   public static void main(String[] args) {

@@ -26,7 +26,6 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.rackspace.monplat.protocol.ExternalMetric;
-import com.rackspace.salus.common.messaging.KafkaTopicProperties;
 import com.rackspace.salus.event.discovery.EngineInstance;
 import com.rackspace.salus.event.discovery.EventEnginePicker;
 import com.rackspace.salus.event.discovery.NoPartitionsAvailableException;
@@ -53,11 +52,6 @@ public class IngestServiceTest {
   @Configuration
   @Import({IngestService.class, MeterRegistryTestConfig.class})
   public static class TestConfig {
-    @Bean
-    public KafkaTopicProperties kafkaTopicProperties() {
-      return new KafkaTopicProperties();
-    }
-
     @Bean
     public EventIngestProperties eventIngestProperties() {
       return new EventIngestProperties();

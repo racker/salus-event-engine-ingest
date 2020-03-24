@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Rackspace US, Inc.
+ * Copyright 2020 Rackspace US, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package com.rackspace.salus.event.ingest.config;
 
+import java.util.List;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
@@ -32,4 +33,8 @@ public class EventIngestProperties {
    */
   String qualifiedAccountDelimiter = ":";
 
+  /**
+   * Topics to be ingested that contain com.rackspace.monplat.protocol.ExternalMetric messages encoded as JSON.
+   */
+  List<String> topics = List.of("telemetry.metrics.json");
 }

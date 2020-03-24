@@ -19,7 +19,6 @@ package com.rackspace.salus.event.ingest.services;
 import static com.rackspace.salus.telemetry.model.LabelNamespaces.MONITORING_SYSTEM_METADATA;
 
 import com.rackspace.monplat.protocol.ExternalMetric;
-import com.rackspace.salus.common.messaging.KafkaTopicProperties;
 import com.rackspace.salus.event.common.InfluxScope;
 import com.rackspace.salus.event.common.Tags;
 import com.rackspace.salus.event.discovery.EngineInstance;
@@ -27,10 +26,13 @@ import com.rackspace.salus.event.discovery.EventEnginePicker;
 import com.rackspace.salus.event.discovery.NoPartitionsAvailableException;
 import com.rackspace.salus.event.ingest.config.EventIngestProperties;
 import com.rackspace.salus.telemetry.model.LabelNamespaces;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.io.Closeable;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
@@ -41,14 +43,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.MeterRegistry;
 
 @Service
 @Slf4j
 public class IngestService implements Closeable {
 
-  private final KafkaTopicProperties kafkaTopicProperties;
   private final EventIngestProperties eventIngestProperties;
   private final EventEnginePicker eventEnginePicker;
   private final KapacitorConnectionPool kapacitorConnectionPool;
@@ -59,12 +58,10 @@ public class IngestService implements Closeable {
   private final Counter metricsWrittenToKapacitor;
 
   @Autowired
-  public IngestService(KafkaTopicProperties kafkaTopicProperties,
-                       EventIngestProperties eventIngestProperties,
+  public IngestService(EventIngestProperties eventIngestProperties,
                        EventEnginePicker eventEnginePicker,
                        KapacitorConnectionPool kapacitorConnectionPool,
                        MeterRegistry meterRegistry) {
-    this.kafkaTopicProperties = kafkaTopicProperties;
     this.eventIngestProperties = eventIngestProperties;
     this.eventEnginePicker = eventEnginePicker;
     this.kapacitorConnectionPool = kapacitorConnectionPool;
@@ -72,11 +69,11 @@ public class IngestService implements Closeable {
     metricsWrittenToKapacitor = meterRegistry.counter("ingest","operation", "written");
     }
 
-  public String getTopic() {
-    return kafkaTopicProperties.getMetrics();
+  public List<String> getTopics() {
+    return eventIngestProperties.getTopics();
   }
 
-  @KafkaListener(topics = "#{__listener.topic}")
+  @KafkaListener(topics = "#{__listener.topics}")
   public void consumeMetric(ExternalMetric metric) {
     log.trace("Ingesting metric={}", metric);
     metricsConsumed.increment();

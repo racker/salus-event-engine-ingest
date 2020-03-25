@@ -59,7 +59,7 @@ import org.springframework.test.context.junit4.SpringRunner;
         MeterRegistryTestConfig.class
     },
     properties = {
-        "salus.kafka.topics.metrics="+ IngestServiceKafkaTest.TOPIC,
+        "salus.event.ingest.topics="+ IngestServiceKafkaTest.TOPIC,
         // override app default so that we can produce before consumer is ready
         "spring.kafka.consumer.auto-offset-reset=earliest",
         "logging.level.com.rackspace.salus.common.messaging.KafkaErrorConfig=debug"

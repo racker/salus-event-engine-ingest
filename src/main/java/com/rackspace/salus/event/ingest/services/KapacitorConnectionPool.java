@@ -20,6 +20,7 @@ import com.rackspace.salus.event.discovery.EngineInstance;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
+import org.influxdb.BatchOptions;
 import org.influxdb.InfluxDB;
 import org.influxdb.InfluxDBFactory;
 import org.springframework.stereotype.Service;
@@ -32,10 +33,12 @@ public class KapacitorConnectionPool implements Closeable {
   public InfluxDB getConnection(EngineInstance engineInstance) {
     return influxConnections.computeIfAbsent(
         engineInstance,
-        key ->
-            InfluxDBFactory.connect(
-                String.format("http://%s:%d", key.getHost(), key.getPort())
-            )
+        key -> {
+            InfluxDB influxDB = InfluxDBFactory.connect(
+                String.format("http://%s:%d", key.getHost(), key.getPort()));
+            influxDB.enableBatch(BatchOptions.DEFAULTS);
+            return influxDB;
+        }
     );
   }
 

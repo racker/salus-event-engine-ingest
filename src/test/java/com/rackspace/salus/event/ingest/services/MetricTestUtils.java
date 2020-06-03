@@ -60,7 +60,7 @@ class MetricTestUtils {
   static void verifyInfluxPointWritten(InfluxDB influxDB, VerificationMode verificationMode) {
     Point point = Point.measurement("cpu")
         .time(1522156506497L, TimeUnit.MILLISECONDS)
-        .tag(Tags.QUALIFIED_ACCOUNT, "CORE:123456")
+        .tag(Tags.TENANT, "123456")
         .tag(Tags.MONITORING_SYSTEM, MonitoringSystem.SALUS.toString())
         .tag(Tags.RESOURCE_ID, "r-1")
         .tag(Tags.RESOURCE_LABEL, "resourceLabel-1")
@@ -73,7 +73,7 @@ class MetricTestUtils {
         .build();
 
     verify(influxDB, verificationMode).write(
-        eq("CORE:123456"),
+        eq("123456"),
         eq(InfluxScope.INGEST_RETENTION_POLICY),
         eq(point)
     );
@@ -83,7 +83,7 @@ class MetricTestUtils {
                                       VerificationMode verificationMode)
       throws NoPartitionsAvailableException {
     verify(eventEnginePicker, verificationMode).pickRecipient(
-        eq("CORE:123456"),
+        eq("123456"),
         eq("r-1"),
         eq("cpu")
     );

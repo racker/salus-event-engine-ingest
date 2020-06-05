@@ -78,18 +78,13 @@ public class IngestService implements Closeable {
     log.trace("Ingesting metric={}", metric);
     metricsConsumed.increment();
 
-    final String qualifiedAccount =
-        String.join(
-            eventIngestProperties.getQualifiedAccountDelimiter(),
-            metric.getAccountType().toString(),
-            metric.getAccount()
-        );
+    final String tenant = metric.getAccount();
 
     final EngineInstance engineInstance;
     final String resourceId = metric.getDevice();
     try {
       engineInstance = eventEnginePicker
-          .pickRecipient(qualifiedAccount, resourceId, metric.getCollectionName());
+          .pickRecipient(tenant, resourceId, metric.getCollectionName());
     } catch (NoPartitionsAvailableException e) {
       log.warn("No instances were available for routing of metric={}", metric);
       return;
@@ -111,7 +106,7 @@ public class IngestService implements Closeable {
             ));
     metric.getCollectionMetadata().forEach(pointBuilder::tag);
     metric.getDeviceMetadata().forEach(pointBuilder::tag);
-    pointBuilder.tag(Tags.QUALIFIED_ACCOUNT, qualifiedAccount);
+    pointBuilder.tag(Tags.TENANT, tenant);
     pointBuilder.tag(Tags.RESOURCE_ID, resourceId);
     if (StringUtils.hasText(metric.getDeviceLabel())) {
       pointBuilder.tag(Tags.RESOURCE_LABEL, metric.getDeviceLabel());
@@ -126,10 +121,10 @@ public class IngestService implements Closeable {
     final Point influxPoint = pointBuilder.build();
 
     log.trace("Sending influxPoint={} for tenant={} resourceId={} to engine={}",
-        influxPoint, qualifiedAccount, resourceId, engineInstance);
+        influxPoint, tenant, resourceId, engineInstance);
 
     kapacitorWriter.write(
-        deriveIngestDatabase(qualifiedAccount),
+        deriveIngestDatabase(tenant),
         deriveRetentionPolicy(),
         influxPoint
     );

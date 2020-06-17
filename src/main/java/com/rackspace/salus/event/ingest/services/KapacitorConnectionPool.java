@@ -17,18 +17,29 @@
 package com.rackspace.salus.event.ingest.services;
 
 import com.rackspace.salus.event.discovery.EngineInstance;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
+import lombok.extern.slf4j.Slf4j;
 import org.influxdb.BatchOptions;
 import org.influxdb.InfluxDB;
 import org.influxdb.InfluxDBFactory;
+import org.influxdb.dto.Point;
 import org.springframework.stereotype.Service;
 
 @Service
+@Slf4j
 public class KapacitorConnectionPool implements Closeable {
   private final ConcurrentHashMap<EngineInstance, InfluxDB> influxConnections =
       new ConcurrentHashMap<>();
+
+  private final Counter batchIngestFailure;
+
+  public KapacitorConnectionPool(MeterRegistry meterRegistry) {
+    this.batchIngestFailure = meterRegistry.counter("errors","operation", "batchFailure");
+  }
 
   public InfluxDB getConnection(EngineInstance engineInstance) {
     return influxConnections.computeIfAbsent(
@@ -36,14 +47,21 @@ public class KapacitorConnectionPool implements Closeable {
         key -> {
             InfluxDB influxDB = InfluxDBFactory.connect(
                 String.format("http://%s:%d", key.getHost(), key.getPort()));
-            influxDB.enableBatch(BatchOptions.DEFAULTS);
+            influxDB.enableBatch(BatchOptions.DEFAULTS.exceptionHandler((points, throwable) -> {
+              batchIngestFailure.increment();
+              log.error("Kafka Ingestion error with Batch: {}", points, throwable);
+              /*for(Point point : points) {
+                // Not sure I like this because its going to cause a slew of errors
+                log.error("Kafka Ingestion error with Point: " + point.lineProtocol(), throwable);
+              }*/
+            }));
             return influxDB;
         }
     );
   }
 
   @Override
-  public void close() throws IOException {
+  public void close() {
     influxConnections.forEachValue(1, InfluxDB::close);
   }
 }

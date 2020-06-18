@@ -17,18 +17,26 @@
 
 package com.rackspace.salus.event.ingest.services;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 
 import com.rackspace.salus.event.discovery.EngineInstance;
 import com.rackspace.salus.event.discovery.EventEnginePicker;
+import com.rackspace.salus.event.discovery.NoPartitionsAvailableException;
 import com.rackspace.salus.event.ingest.config.EventIngestProperties;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import org.influxdb.InfluxDB;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mock;
+import org.powermock.api.mockito.PowerMockito;
+import org.powermock.core.classloader.annotations.PrepareForTest;
+import org.powermock.modules.junit4.PowerMockRunner;
+import org.powermock.modules.junit4.PowerMockRunnerDelegate;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.client.AutoConfigureMockRestServiceServer;
 import org.springframework.boot.test.autoconfigure.web.client.RestClientTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.web.client.RestTemplateBuilder;
@@ -38,9 +46,13 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.RestTemplate;
 
-@RunWith(SpringRunner.class)
-@RestClientTest(KapacitorConnectionPool.class)
+//@RunWith(SpringRunner.class)
+@RestClientTest
+@RunWith(PowerMockRunner.class)
+@PowerMockRunnerDelegate(SpringRunner.class)
+@PrepareForTest(InetAddress.class)
 @Import({IngestService.class, MeterRegistryTestConfig.class, KapacitorConnectionPool.class})
 public class IngestServiceFailureTest {
   String baseURI = "";
@@ -53,9 +65,8 @@ public class IngestServiceFailureTest {
     }
 
     @Bean
-    public RestTemplateBuilder restTemplateBuilder() {
-      return new RestTemplateBuilder()
-          .rootUri("");
+    public RestTemplate restTemplate(RestTemplateBuilder restTemplateBuilder) {
+      return restTemplateBuilder.build();
     }
   }
 
@@ -71,15 +82,37 @@ public class IngestServiceFailureTest {
   @MockBean
   EventEnginePicker eventEnginePicker;
 
+  @Mock
+  InfluxDB influxDB;
+
   @Test
-  public void testGetPolicyMonitor_doesntExist() {
+  public void testGetPolicyMonitor_doesntExist()
+      throws NoPartitionsAvailableException, UnknownHostException {
     mockServer.expect(requestTo(baseURI+"/kapacitor/v1/write"))
         .andRespond(withStatus(HttpStatus.NOT_FOUND));
+    when(eventEnginePicker.pickRecipient(any(), any(), any()))
+        .thenReturn(
+            new EngineInstance("host", 123, 3)
+        );
 
-    //probably going to need to figure out how to mock out the original connection to the server too.
-    EngineInstance eventEngine = eventEnginePicker.pickAll().stream().findFirst().get();
-    pool.getConnection(eventEngine);
+    InetAddress address = InetAddress.getLocalHost();
 
+    PowerMockito.mockStatic(InetAddress.class);
+    PowerMockito.when(InetAddress.getByName(any()))
+        .thenReturn(InetAddress.getLocalHost()/*return a new InetAddress*/);
+
+    // I need to setup InetAddress.getByName(String host);
+
+    // We need to create an InfluxDB Object to return
+    // So the problem is that InfluxDBFacory isn't Mocked
+    //when(InfluxDBFactory.connect(anyString())).thenReturn(influxDB);
+
+    // probably going to need to figure out how to mock out the original connection to the server too.
+    EngineInstance eventEngine = eventEnginePicker.pickRecipient("t-1", "r-1", "c-1");
+    InfluxDB kapacitorWriter = pool.getConnection(eventEngine);
+    kapacitorWriter.write("This should fail I hope");
+
+    ingestService.consumeMetric(MetricTestUtils.buildMetric());
     //assertThat(result, nullValue());
   }
 

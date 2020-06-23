@@ -17,25 +17,29 @@
 
 package com.rackspace.salus.event.ingest.services;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
-import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
+import static org.mockserver.integration.ClientAndServer.startClientAndServer;
+import static org.mockserver.matchers.Times.exactly;
+import static org.mockserver.model.HttpRequest.request;
+import static org.mockserver.model.HttpResponse.response;
 
+import com.rackspace.monplat.protocol.ExternalMetric;
 import com.rackspace.salus.event.discovery.EngineInstance;
 import com.rackspace.salus.event.discovery.EventEnginePicker;
 import com.rackspace.salus.event.discovery.NoPartitionsAvailableException;
 import com.rackspace.salus.event.ingest.config.EventIngestProperties;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import org.influxdb.InfluxDB;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import java.util.concurrent.TimeUnit;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.Mock;
-import org.powermock.api.mockito.PowerMockito;
-import org.powermock.core.classloader.annotations.PrepareForTest;
-import org.powermock.modules.junit4.PowerMockRunner;
-import org.powermock.modules.junit4.PowerMockRunnerDelegate;
+import org.mockserver.client.server.MockServerClient;
+import org.mockserver.integration.ClientAndServer;
+import org.mockserver.model.Header;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.client.RestClientTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -43,19 +47,12 @@ import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-import org.springframework.http.HttpStatus;
 import org.springframework.test.context.junit4.SpringRunner;
-import org.springframework.test.web.client.MockRestServiceServer;
-import org.springframework.web.client.RestTemplate;
 
-//@RunWith(SpringRunner.class)
-@RestClientTest
-@RunWith(PowerMockRunner.class)
-@PowerMockRunnerDelegate(SpringRunner.class)
-@PrepareForTest(InetAddress.class)
+@RunWith(SpringRunner.class)
+@RestClientTest(KapacitorConnectionPool.class)
 @Import({IngestService.class, MeterRegistryTestConfig.class, KapacitorConnectionPool.class})
 public class IngestServiceFailureTest {
-  String baseURI = "";
   @Configuration
   @Import({IngestService.class, MeterRegistryTestConfig.class})
   public static class TestConfig {
@@ -65,13 +62,11 @@ public class IngestServiceFailureTest {
     }
 
     @Bean
-    public RestTemplate restTemplate(RestTemplateBuilder restTemplateBuilder) {
-      return restTemplateBuilder.build();
+    public RestTemplateBuilder restTemplateBuilder() {
+      return new RestTemplateBuilder()
+          .rootUri("");
     }
   }
-
-  @Autowired
-  private MockRestServiceServer mockServer;
 
   @Autowired
   KapacitorConnectionPool pool;
@@ -82,38 +77,61 @@ public class IngestServiceFailureTest {
   @MockBean
   EventEnginePicker eventEnginePicker;
 
-  @Mock
-  InfluxDB influxDB;
+  @Autowired
+  MeterRegistry meterRegistry;
 
-  @Test
-  public void testGetPolicyMonitor_doesntExist()
-      throws NoPartitionsAvailableException, UnknownHostException {
-    mockServer.expect(requestTo(baseURI+"/kapacitor/v1/write"))
-        .andRespond(withStatus(HttpStatus.NOT_FOUND));
-    when(eventEnginePicker.pickRecipient(any(), any(), any()))
-        .thenReturn(
-            new EngineInstance("host", 123, 3)
-        );
+  private static ClientAndServer mockServer;
 
-    InetAddress address = InetAddress.getLocalHost();
-
-    PowerMockito.mockStatic(InetAddress.class);
-    PowerMockito.when(InetAddress.getByName(any()))
-        .thenReturn(InetAddress.getLocalHost()/*return a new InetAddress*/);
-
-    // I need to setup InetAddress.getByName(String host);
-
-    // We need to create an InfluxDB Object to return
-    // So the problem is that InfluxDBFacory isn't Mocked
-    //when(InfluxDBFactory.connect(anyString())).thenReturn(influxDB);
-
-    // probably going to need to figure out how to mock out the original connection to the server too.
-    EngineInstance eventEngine = eventEnginePicker.pickRecipient("t-1", "r-1", "c-1");
-    InfluxDB kapacitorWriter = pool.getConnection(eventEngine);
-    kapacitorWriter.write("This should fail I hope");
-
-    ingestService.consumeMetric(MetricTestUtils.buildMetric());
-    //assertThat(result, nullValue());
+  @BeforeClass
+  public static void startServer() {
+    mockServer = startClientAndServer(1080);
   }
 
+  @Test
+  public void testKapacitorWriteFailure()
+      throws NoPartitionsAvailableException, InterruptedException {
+
+    createExpectationForWriteFailure();
+
+    EngineInstance engineInstance = new EngineInstance("127.0.0.1", 1080, 1);
+    when(eventEnginePicker.pickRecipient(any(), any(), any())).thenReturn(engineInstance);
+
+    pool.getConnection(engineInstance);
+
+    //exceed BATCH buffer limit
+    for(int i = 0; i < 10001; i++) {
+      ExternalMetric metric = MetricTestUtils.buildMetric();
+      ingestService.consumeMetric(metric);
+    }
+    Thread.sleep(1000);
+    Counter counter = meterRegistry.find("errors").tag("operation", "batchFailure").counter();
+    assertThat(counter.count()).isEqualTo(1);
+  }
+
+
+  private void createExpectationForWriteFailure() {
+    new MockServerClient("127.0.0.1", 1080)
+        .when(
+            request()
+                .withMethod("POST")
+                .withPath("/kapacitor/v1/write")
+                .withHeader("\"Content-type\", \"application/json\""),
+            exactly(1)
+        )
+        .respond(
+            response()
+                .withStatusCode(404)
+                .withHeaders(
+                    new Header("Content-Type", "application/json; charset=utf-8"),
+                    new Header("Cache-Control", "public, max-age=86400")
+                )
+                .withBody("{ message: 'incorrect username and password combination' }")
+                .withDelay(TimeUnit.SECONDS,1)
+        );
+  }
+
+  @AfterClass
+  public static void stopServer() {
+    mockServer.stop();
+  }
 }

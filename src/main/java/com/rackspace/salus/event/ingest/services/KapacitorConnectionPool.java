@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Rackspace US, Inc.
+ * Copyright 2020 Rackspace US, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,6 +12,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package com.rackspace.salus.event.ingest.services;
@@ -20,13 +21,11 @@ import com.rackspace.salus.event.discovery.EngineInstance;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
 import org.influxdb.BatchOptions;
 import org.influxdb.InfluxDB;
 import org.influxdb.InfluxDBFactory;
-import org.influxdb.dto.Point;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -50,10 +49,6 @@ public class KapacitorConnectionPool implements Closeable {
             influxDB.enableBatch(BatchOptions.DEFAULTS.exceptionHandler((points, throwable) -> {
               batchIngestFailure.increment();
               log.error("Kafka Ingestion error with Batch: {}", points, throwable);
-              /*for(Point point : points) {
-                // Not sure I like this because its going to cause a slew of errors
-                log.error("Kafka Ingestion error with Point: " + point.lineProtocol(), throwable);
-              }*/
             }));
             return influxDB;
         }

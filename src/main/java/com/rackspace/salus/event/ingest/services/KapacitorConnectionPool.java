@@ -37,7 +37,7 @@ public class KapacitorConnectionPool implements Closeable {
   private final Counter batchIngestFailure;
 
   public KapacitorConnectionPool(MeterRegistry meterRegistry) {
-    this.batchIngestFailure = meterRegistry.counter("errors","operation", "batchFailure");
+    this.batchIngestFailure = meterRegistry.counter("errors","operation", "batchIngestFailure");
   }
 
   public InfluxDB getConnection(EngineInstance engineInstance) {

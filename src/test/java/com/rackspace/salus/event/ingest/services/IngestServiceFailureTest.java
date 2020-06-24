@@ -33,6 +33,7 @@ import com.rackspace.salus.event.ingest.config.EventIngestProperties;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.util.concurrent.TimeUnit;
+import org.influxdb.BatchOptions;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -43,7 +44,6 @@ import org.mockserver.model.Header;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.client.RestClientTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -54,17 +54,11 @@ import org.springframework.test.context.junit4.SpringRunner;
 @Import({IngestService.class, MeterRegistryTestConfig.class, KapacitorConnectionPool.class})
 public class IngestServiceFailureTest {
   @Configuration
-  @Import({IngestService.class, MeterRegistryTestConfig.class})
+  @Import({IngestService.class})
   public static class TestConfig {
     @Bean
     public EventIngestProperties eventIngestProperties() {
       return new EventIngestProperties();
-    }
-
-    @Bean
-    public RestTemplateBuilder restTemplateBuilder() {
-      return new RestTemplateBuilder()
-          .rootUri("");
     }
   }
 
@@ -84,7 +78,7 @@ public class IngestServiceFailureTest {
 
   @BeforeClass
   public static void startServer() {
-    mockServer = startClientAndServer(1080);
+    mockServer = startClientAndServer(0);
   }
 
   @Test
@@ -93,24 +87,24 @@ public class IngestServiceFailureTest {
 
     createExpectationForWriteFailure();
 
-    EngineInstance engineInstance = new EngineInstance("127.0.0.1", 1080, 1);
+    EngineInstance engineInstance = new EngineInstance("127.0.0.1", mockServer.getPort(), 1);
     when(eventEnginePicker.pickRecipient(any(), any(), any())).thenReturn(engineInstance);
 
     pool.getConnection(engineInstance);
 
     //exceed BATCH buffer limit
-    for(int i = 0; i < 10001; i++) {
+    for(int i = 0; i < BatchOptions.DEFAULT_BUFFER_LIMIT + 1; i++) {
       ExternalMetric metric = MetricTestUtils.buildMetric();
       ingestService.consumeMetric(metric);
     }
     Thread.sleep(1000);
-    Counter counter = meterRegistry.find("errors").tag("operation", "batchFailure").counter();
+    Counter counter = meterRegistry.find("errors").tag("operation", "batchIngestFailure").counter();
     assertThat(counter.count()).isEqualTo(1);
   }
 
 
   private void createExpectationForWriteFailure() {
-    new MockServerClient("127.0.0.1", 1080)
+    new MockServerClient("127.0.0.1", mockServer.getPort())
         .when(
             request()
                 .withMethod("POST")

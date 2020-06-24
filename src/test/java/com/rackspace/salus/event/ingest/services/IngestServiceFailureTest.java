@@ -17,7 +17,8 @@
 
 package com.rackspace.salus.event.ingest.services;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.mockserver.integration.ClientAndServer.startClientAndServer;
@@ -32,7 +33,6 @@ import com.rackspace.salus.event.discovery.NoPartitionsAvailableException;
 import com.rackspace.salus.event.ingest.config.EventIngestProperties;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
-import java.util.concurrent.TimeUnit;
 import org.influxdb.BatchOptions;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -92,14 +92,14 @@ public class IngestServiceFailureTest {
 
     pool.getConnection(engineInstance);
 
-    //exceed BATCH buffer limit
     for(int i = 0; i < BatchOptions.DEFAULT_BUFFER_LIMIT + 1; i++) {
       ExternalMetric metric = MetricTestUtils.buildMetric();
       ingestService.consumeMetric(metric);
     }
-    Thread.sleep(1000);
+
     Counter counter = meterRegistry.find("errors").tag("operation", "batchIngestFailure").counter();
-    assertThat(counter.count()).isEqualTo(1);
+
+    await().atMost(2, SECONDS).until(() -> counter.count() == 1);
   }
 
 
@@ -120,7 +120,7 @@ public class IngestServiceFailureTest {
                     new Header("Cache-Control", "public, max-age=86400")
                 )
                 .withBody("{ message: 'incorrect username and password combination' }")
-                .withDelay(TimeUnit.SECONDS,1)
+                .withDelay(SECONDS,1)
         );
   }
 

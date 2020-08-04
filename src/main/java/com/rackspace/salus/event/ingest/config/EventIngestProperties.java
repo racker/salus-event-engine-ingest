@@ -29,10 +29,8 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 public class EventIngestProperties {
 
-  @NotEmpty
   String influxDbDatabaseOverride;
 
-  @NotEmpty
   String influxDbRetentionPolicyOverride;
 
   /**

@@ -17,6 +17,7 @@
 package com.rackspace.salus.event.ingest.config;
 
 import java.util.List;
+import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotEmpty;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -36,7 +37,7 @@ public class EventIngestProperties {
   /**
    * The delimiter to use when constructing a qualified account value.
    */
-  @NotEmpty
+  @NotBlank
   String qualifiedAccountDelimiter = ":";
 
   /**

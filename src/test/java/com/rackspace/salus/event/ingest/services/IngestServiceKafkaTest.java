@@ -25,14 +25,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-import com.rackspace.monplat.protocol.ExternalMetric;
-import com.rackspace.monplat.protocol.ExternalMetricSerializer;
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.util.JsonFormat;
+import com.rackspace.monplat.protocol.UniversalMetricFrame;
 import com.rackspace.salus.common.messaging.EnableSalusKafkaMessaging;
 import com.rackspace.salus.event.discovery.EngineInstance;
 import com.rackspace.salus.event.discovery.EventEnginePicker;
 import com.rackspace.salus.event.discovery.NoPartitionsAvailableException;
 import com.rackspace.salus.event.ingest.config.EventIngestProperties;
-import java.nio.charset.StandardCharsets;
 import org.influxdb.InfluxDB;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -94,7 +94,8 @@ public class IngestServiceKafkaTest {
   private KafkaTemplate<String, Object> kafkaTemplate;
 
   @Test
-  public void testDeserializerFailure() throws NoPartitionsAvailableException {
+  public void testDeserializerFailure()
+      throws NoPartitionsAvailableException, InvalidProtocolBufferException {
     when(eventEnginePicker.pickRecipient(any(), any(), any()))
         .thenReturn(
             new EngineInstance("host", 123, 3)
@@ -106,11 +107,11 @@ public class IngestServiceKafkaTest {
     // send a bogus Avro ExternalMetric json object
     kafkaTemplate.send(TOPIC, "{}");
 
-    final ExternalMetricSerializer serializer = new ExternalMetricSerializer();
-    ExternalMetric validMetric = MetricTestUtils.buildMetric();
+    UniversalMetricFrame validMetric = MetricTestUtils.buildMetric();
 
+    System.out.println("Testing!!!!!!!!!!!!!!"+ JsonFormat.printer().print(validMetric));
     // ...and send a valid one so we can assert the processing skipped over bad one
-    kafkaTemplate.send(TOPIC, new String(serializer.serialize(TOPIC, validMetric), StandardCharsets.UTF_8));
+    kafkaTemplate.send(TOPIC, JsonFormat.printer().print(validMetric));
 
     // use timeout in verification to allow for async consumer startup
     verifyEventEnginePicker(eventEnginePicker, timeout(5000));

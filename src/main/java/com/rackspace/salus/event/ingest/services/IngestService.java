@@ -18,7 +18,8 @@ package com.rackspace.salus.event.ingest.services;
 
 import static com.rackspace.salus.telemetry.model.LabelNamespaces.MONITORING_SYSTEM_METADATA;
 
-import com.rackspace.monplat.protocol.ExternalMetric;
+import com.google.protobuf.Timestamp;
+import com.rackspace.monplat.protocol.UniversalMetricFrame;
 import com.rackspace.salus.event.common.InfluxScope;
 import com.rackspace.salus.event.common.Tags;
 import com.rackspace.salus.event.discovery.EngineInstance;
@@ -74,17 +75,17 @@ public class IngestService implements Closeable {
   }
 
   @KafkaListener(topics = "#{__listener.topics}")
-  public void consumeMetric(ExternalMetric metric) {
+  public void consumeMetric(UniversalMetricFrame metric) {
     log.trace("Ingesting metric={}", metric);
     metricsConsumed.increment();
 
-    final String tenant = metric.getAccount();
+    final String tenant = metric.getTenantId();
 
     final EngineInstance engineInstance;
     final String resourceId = metric.getDevice();
     try {
       engineInstance = eventEnginePicker
-          .pickRecipient(tenant, resourceId, metric.getCollectionName());
+          .pickRecipient(tenant, resourceId, metric.getMetrics(0).getGroup());
     } catch (NoPartitionsAvailableException e) {
       log.warn("No instances were available for routing of metric={}", metric);
       return;
@@ -93,9 +94,9 @@ public class IngestService implements Closeable {
     // Kapacitor provides a write endpoint that is compatible with InfluxDB, which is why
     // a native InfluxDB client is used here.
     final InfluxDB kapacitorWriter = kapacitorConnectionPool.getConnection(engineInstance);
-
-    final Instant timestamp = Instant.parse(metric.getTimestamp());
-    final Builder pointBuilder = Point.measurement(metric.getCollectionName())
+    Timestamp protobufTimestamp = metric.getMetrics(0).getTimestamp();
+    final Instant timestamp = Instant.ofEpochSecond(protobufTimestamp.getSeconds(), protobufTimestamp.getNanos());
+    final Builder pointBuilder = Point.measurement(metric.getMetrics(0).getGroup())
         .time(timestamp.toEpochMilli(), TimeUnit.MILLISECONDS);
 
     metric.getSystemMetadata()
@@ -104,19 +105,21 @@ public class IngestService implements Closeable {
                 LabelNamespaces.applyNamespace(MONITORING_SYSTEM_METADATA, name),
                 value
             ));
-    metric.getCollectionMetadata().forEach(pointBuilder::tag);
-    metric.getDeviceMetadata().forEach(pointBuilder::tag);
+    metric.getMetrics(0).getMetadataMap().forEach(pointBuilder::tag);
+    metric.getDeviceMetadataMap().forEach(pointBuilder::tag);
     pointBuilder.tag(Tags.TENANT, tenant);
     pointBuilder.tag(Tags.RESOURCE_ID, resourceId);
-    if (StringUtils.hasText(metric.getDeviceLabel())) {
-      pointBuilder.tag(Tags.RESOURCE_LABEL, metric.getDeviceLabel());
-    }
     pointBuilder.tag(Tags.MONITORING_SYSTEM, metric.getMonitoringSystem().toString());
 
-    metric.getIvalues().forEach(pointBuilder::addField);
-    metric.getFvalues().forEach(pointBuilder::addField);
-    metric.getSvalues().forEach(pointBuilder::addField);
-
+    metric.getMetricsList().stream().forEach(val -> {
+      if(!StringUtils.isEmpty(val.getString())) {
+        pointBuilder.addField(val.getName(), val.getString());
+      } else if(val.getFloat()!=0.0) {
+        pointBuilder.addField(val.getName(), val.getFloat());
+      } else if(val.getInt()!=0) {
+        pointBuilder.addField(val.getName(), val.getInt());
+      }
+    });
 
     final Point influxPoint = pointBuilder.build();
 

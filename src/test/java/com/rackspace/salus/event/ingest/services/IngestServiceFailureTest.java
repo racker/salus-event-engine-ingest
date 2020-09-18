@@ -26,7 +26,7 @@ import static org.mockserver.matchers.Times.exactly;
 import static org.mockserver.model.HttpRequest.request;
 import static org.mockserver.model.HttpResponse.response;
 
-import com.rackspace.monplat.protocol.ExternalMetric;
+import com.rackspace.monplat.protocol.UniversalMetricFrame;
 import com.rackspace.salus.event.discovery.EngineInstance;
 import com.rackspace.salus.event.discovery.EventEnginePicker;
 import com.rackspace.salus.event.discovery.NoPartitionsAvailableException;
@@ -93,7 +93,7 @@ public class IngestServiceFailureTest {
     pool.getConnection(engineInstance);
 
     for(int i = 0; i < BatchOptions.DEFAULT_BUFFER_LIMIT + 1; i++) {
-      ExternalMetric metric = MetricTestUtils.buildMetric();
+      UniversalMetricFrame metric = MetricTestUtils.buildMetric();
       ingestService.consumeMetric(metric);
     }
 

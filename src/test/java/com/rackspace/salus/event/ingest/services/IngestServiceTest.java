@@ -25,7 +25,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-import com.rackspace.monplat.protocol.ExternalMetric;
+import com.rackspace.monplat.protocol.UniversalMetricFrame;
 import com.rackspace.salus.event.discovery.EngineInstance;
 import com.rackspace.salus.event.discovery.EventEnginePicker;
 import com.rackspace.salus.event.discovery.NoPartitionsAvailableException;
@@ -72,7 +72,7 @@ public class IngestServiceTest {
 
   @Test
   public void consumeMetric() throws NoPartitionsAvailableException {
-    final ExternalMetric metric = MetricTestUtils.buildMetric();
+    final UniversalMetricFrame metric = MetricTestUtils.buildMetric();
 
     when(eventEnginePicker.pickRecipient(any(), any(), any()))
         .thenReturn(

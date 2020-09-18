@@ -19,6 +19,7 @@ package com.rackspace.salus.event.ingest.services;
 import static com.rackspace.salus.telemetry.model.LabelNamespaces.MONITORING_SYSTEM_METADATA;
 
 import com.google.protobuf.Timestamp;
+import com.rackspace.monplat.protocol.Metric;
 import com.rackspace.monplat.protocol.UniversalMetricFrame;
 import com.rackspace.salus.event.common.InfluxScope;
 import com.rackspace.salus.event.common.Tags;
@@ -84,6 +85,7 @@ public class IngestService implements Closeable {
     final EngineInstance engineInstance;
     final String resourceId = metric.getDevice();
     try {
+      // TODO adjust recipient selection to handle non-Salus metrics
       engineInstance = eventEnginePicker
           .pickRecipient(tenant, resourceId, metric.getMetrics(0).getGroup());
     } catch (NoPartitionsAvailableException e) {
@@ -94,6 +96,7 @@ public class IngestService implements Closeable {
     // Kapacitor provides a write endpoint that is compatible with InfluxDB, which is why
     // a native InfluxDB client is used here.
     final InfluxDB kapacitorWriter = kapacitorConnectionPool.getConnection(engineInstance);
+    // TODO adjust recipient selection to handle non-Salus metrics
     Timestamp protobufTimestamp = metric.getMetrics(0).getTimestamp();
     final Instant timestamp = Instant.ofEpochSecond(protobufTimestamp.getSeconds(), protobufTimestamp.getNanos());
     final Builder pointBuilder = Point.measurement(metric.getMetrics(0).getGroup())
@@ -112,12 +115,16 @@ public class IngestService implements Closeable {
     pointBuilder.tag(Tags.MONITORING_SYSTEM, metric.getMonitoringSystem().toString());
 
     metric.getMetricsList().stream().forEach(val -> {
-      if(!StringUtils.isEmpty(val.getString())) {
-        pointBuilder.addField(val.getName(), val.getString());
-      } else if(val.getFloat()!=0.0) {
-        pointBuilder.addField(val.getName(), val.getFloat());
-      } else if(val.getInt()!=0) {
-        pointBuilder.addField(val.getName(), val.getInt());
+      Metric.ValueCase valueCase = Metric.ValueCase.forNumber(val.getValueCase().getNumber());
+      switch (valueCase) {
+        case INT:
+          pointBuilder.addField(val.getName(), val.getInt());
+          break;
+        case FLOAT:
+          pointBuilder.addField(val.getName(), val.getFloat());
+          break;
+        case STRING:
+          pointBuilder.addField(val.getName(), val.getString());
       }
     });
 

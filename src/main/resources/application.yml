@@ -8,7 +8,7 @@ spring:
       group-id: ${spring.application.name}-${salus.environment}
       auto-offset-reset: latest
       properties:
-        spring.deserializer.value.delegate.class: com.rackspace.monplat.protocol.ExternalMetricDeserializer
+        spring.deserializer.value.delegate.class: com.rackspace.monplat.protocol.UniversalMetricFrameDeserializer
   application:
     name: salus-event-engine-ingest
 management:

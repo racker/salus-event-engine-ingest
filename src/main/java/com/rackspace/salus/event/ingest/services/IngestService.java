@@ -96,7 +96,7 @@ public class IngestService implements Closeable {
     // Kapacitor provides a write endpoint that is compatible with InfluxDB, which is why
     // a native InfluxDB client is used here.
     final InfluxDB kapacitorWriter = kapacitorConnectionPool.getConnection(engineInstance);
-    // TODO adjust recipient selection to handle non-Salus metrics
+    // TODO adjust timestamp, measurement, and tags to handle non-Salus metrics
     Timestamp protobufTimestamp = metric.getMetrics(0).getTimestamp();
     final Instant timestamp = Instant.ofEpochSecond(protobufTimestamp.getSeconds(), protobufTimestamp.getNanos());
     final Builder pointBuilder = Point.measurement(metric.getMetrics(0).getGroup())
@@ -115,8 +115,7 @@ public class IngestService implements Closeable {
     pointBuilder.tag(Tags.MONITORING_SYSTEM, metric.getMonitoringSystem().toString());
 
     metric.getMetricsList().stream().forEach(val -> {
-      Metric.ValueCase valueCase = Metric.ValueCase.forNumber(val.getValueCase().getNumber());
-      switch (valueCase) {
+      switch (val.getValueCase()) {
         case INT:
           pointBuilder.addField(val.getName(), val.getInt());
           break;
@@ -125,6 +124,7 @@ public class IngestService implements Closeable {
           break;
         case STRING:
           pointBuilder.addField(val.getName(), val.getString());
+          break;
       }
     });
 

@@ -113,15 +113,11 @@ steps:
 
   - name: gcr.io/cloud-builders/git
     id: E2E_SCRIPT_CLONE
-    waitFor:
-    - DEPLOY_APPLICATION
     args: ['clone', 'https://source.developers.google.com/p/$PROJECT_ID/r/github_rackspace-segment-support_monplat-k8s-env', '/workspace/monplat-k8s-env/']
 
   - name: gcr.io/cloud-builders/git
-    id: HELM_E2E_CLONE
-    waitFor:
-    - DEPLOY_APPLICATION
-    args: ['clone', 'https://source.developers.google.com/p/$PROJECT_ID/r/github_rackspace-segment-support_helm-salus-e2e', '/workspace/helm-salus-e2e/']
+    id: CURL_POD_CLONE
+    args: ['clone', 'https://source.developers.google.com/p/$PROJECT_ID/r/github_rackspace-segment-support_curl-pod', '/workspace/curl-pod/']
 
   - name: 'gcr.io/$PROJECT_ID/helm'
     id: RUN_E2E_TESTS
@@ -130,12 +126,9 @@ steps:
     - -c
     - |
       gcloud container clusters get-credentials ${_CLOUDSDK_CONTAINER_CLUSTER}
-      export E2E_DEPLOYMENT="e2e-ci-$(head /dev/urandom | tr -dc a-z0-9 | head -c 13 ; echo '')"
-      helm upgrade --install $${E2E_DEPLOYMENT} --set service.type='LoadBalancer' --wait /workspace/helm-salus-e2e
-      /usr/bin/python3 /workspace/monplat-k8s-env/scripts/e2e-deploy.py ${_SALUS_APP} \
-          --namespace ${_APP_NAMESPACE} \
-          --endpoint "http://$(kubectl get svc $${E2E_DEPLOYMENT} -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
-      helm del $${E2E_DEPLOYMENT}
+      kubectl apply -f /workspace/curl-pod/curl-pod.yaml
+      /usr/bin/python3 /workspace/monplat-k8s-env/scripts/e2e-deploy.py \
+          --endpoint "http://e2e"
     env:
     - 'CLOUDSDK_COMPUTE_ZONE=${_CLOUDSDK_COMPUTE_ZONE}'
     - 'CLOUDSDK_COMPUTE_REGION=${_CLOUDSDK_COMPUTE_REGION}'

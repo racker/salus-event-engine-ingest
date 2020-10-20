@@ -18,8 +18,9 @@ package com.rackspace.salus.event.ingest.services;
 
 import static com.rackspace.salus.telemetry.model.LabelNamespaces.MONITORING_SYSTEM_METADATA;
 
-import com.rackspace.monplat.protocol.ExternalMetric;
-import com.rackspace.salus.common.messaging.KafkaTopicProperties;
+import com.google.protobuf.Timestamp;
+import com.rackspace.monplat.protocol.Metric;
+import com.rackspace.monplat.protocol.UniversalMetricFrame;
 import com.rackspace.salus.event.common.InfluxScope;
 import com.rackspace.salus.event.common.Tags;
 import com.rackspace.salus.event.discovery.EngineInstance;
@@ -27,10 +28,13 @@ import com.rackspace.salus.event.discovery.EventEnginePicker;
 import com.rackspace.salus.event.discovery.NoPartitionsAvailableException;
 import com.rackspace.salus.event.ingest.config.EventIngestProperties;
 import com.rackspace.salus.telemetry.model.LabelNamespaces;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.io.Closeable;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
@@ -41,14 +45,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.MeterRegistry;
 
 @Service
 @Slf4j
 public class IngestService implements Closeable {
 
-  private final KafkaTopicProperties kafkaTopicProperties;
   private final EventIngestProperties eventIngestProperties;
   private final EventEnginePicker eventEnginePicker;
   private final KapacitorConnectionPool kapacitorConnectionPool;
@@ -59,12 +60,10 @@ public class IngestService implements Closeable {
   private final Counter metricsWrittenToKapacitor;
 
   @Autowired
-  public IngestService(KafkaTopicProperties kafkaTopicProperties,
-                       EventIngestProperties eventIngestProperties,
+  public IngestService(EventIngestProperties eventIngestProperties,
                        EventEnginePicker eventEnginePicker,
                        KapacitorConnectionPool kapacitorConnectionPool,
                        MeterRegistry meterRegistry) {
-    this.kafkaTopicProperties = kafkaTopicProperties;
     this.eventIngestProperties = eventIngestProperties;
     this.eventEnginePicker = eventEnginePicker;
     this.kapacitorConnectionPool = kapacitorConnectionPool;
@@ -72,27 +71,23 @@ public class IngestService implements Closeable {
     metricsWrittenToKapacitor = meterRegistry.counter("ingest","operation", "written");
     }
 
-  public String getTopic() {
-    return kafkaTopicProperties.getMetrics();
+  public List<String> getTopics() {
+    return eventIngestProperties.getTopics();
   }
 
-  @KafkaListener(topics = "#{__listener.topic}")
-  public void consumeMetric(ExternalMetric metric) {
+  @KafkaListener(topics = "#{__listener.topics}")
+  public void consumeMetric(UniversalMetricFrame metric) {
     log.trace("Ingesting metric={}", metric);
     metricsConsumed.increment();
 
-    final String qualifiedAccount =
-        String.join(
-            eventIngestProperties.getQualifiedAccountDelimiter(),
-            metric.getAccountType().toString(),
-            metric.getAccount()
-        );
+    final String tenant = metric.getTenantId();
 
     final EngineInstance engineInstance;
     final String resourceId = metric.getDevice();
     try {
+      // TODO adjust recipient selection to handle non-Salus metrics
       engineInstance = eventEnginePicker
-          .pickRecipient(qualifiedAccount, resourceId, metric.getCollectionName());
+          .pickRecipient(tenant, resourceId, metric.getMetrics(0).getGroup());
     } catch (NoPartitionsAvailableException e) {
       log.warn("No instances were available for routing of metric={}", metric);
       return;
@@ -101,9 +96,10 @@ public class IngestService implements Closeable {
     // Kapacitor provides a write endpoint that is compatible with InfluxDB, which is why
     // a native InfluxDB client is used here.
     final InfluxDB kapacitorWriter = kapacitorConnectionPool.getConnection(engineInstance);
-
-    final Instant timestamp = Instant.parse(metric.getTimestamp());
-    final Builder pointBuilder = Point.measurement(metric.getCollectionName())
+    // TODO adjust timestamp, measurement, and tags to handle non-Salus metrics
+    Timestamp protobufTimestamp = metric.getMetrics(0).getTimestamp();
+    final Instant timestamp = Instant.ofEpochSecond(protobufTimestamp.getSeconds(), protobufTimestamp.getNanos());
+    final Builder pointBuilder = Point.measurement(metric.getMetrics(0).getGroup())
         .time(timestamp.toEpochMilli(), TimeUnit.MILLISECONDS);
 
     metric.getSystemMetadata()
@@ -112,27 +108,33 @@ public class IngestService implements Closeable {
                 LabelNamespaces.applyNamespace(MONITORING_SYSTEM_METADATA, name),
                 value
             ));
-    metric.getCollectionMetadata().forEach(pointBuilder::tag);
-    metric.getDeviceMetadata().forEach(pointBuilder::tag);
-    pointBuilder.tag(Tags.QUALIFIED_ACCOUNT, qualifiedAccount);
+    metric.getMetrics(0).getMetadataMap().forEach(pointBuilder::tag);
+    metric.getDeviceMetadataMap().forEach(pointBuilder::tag);
+    pointBuilder.tag(Tags.TENANT, tenant);
     pointBuilder.tag(Tags.RESOURCE_ID, resourceId);
-    if (StringUtils.hasText(metric.getDeviceLabel())) {
-      pointBuilder.tag(Tags.RESOURCE_LABEL, metric.getDeviceLabel());
-    }
     pointBuilder.tag(Tags.MONITORING_SYSTEM, metric.getMonitoringSystem().toString());
 
-    metric.getIvalues().forEach(pointBuilder::addField);
-    metric.getFvalues().forEach(pointBuilder::addField);
-    metric.getSvalues().forEach(pointBuilder::addField);
-
+    metric.getMetricsList().stream().forEach(val -> {
+      switch (val.getValueCase()) {
+        case INT:
+          pointBuilder.addField(val.getName(), val.getInt());
+          break;
+        case FLOAT:
+          pointBuilder.addField(val.getName(), val.getFloat());
+          break;
+        case STRING:
+          pointBuilder.addField(val.getName(), val.getString());
+          break;
+      }
+    });
 
     final Point influxPoint = pointBuilder.build();
 
     log.trace("Sending influxPoint={} for tenant={} resourceId={} to engine={}",
-        influxPoint, qualifiedAccount, resourceId, engineInstance);
+        influxPoint, tenant, resourceId, engineInstance);
 
     kapacitorWriter.write(
-        deriveIngestDatabase(qualifiedAccount),
+        deriveIngestDatabase(tenant),
         deriveRetentionPolicy(),
         influxPoint
     );

@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Rackspace US, Inc.
+ * Copyright 2020 Rackspace US, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,20 +16,33 @@
 
 package com.rackspace.salus.event.ingest.config;
 
+import java.util.List;
+import javax.validation.constraints.NotBlank;
+import javax.validation.constraints.NotEmpty;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
+import org.springframework.validation.annotation.Validated;
 
 @ConfigurationProperties("salus.event.ingest")
 @Component
 @Data
+@Validated
 public class EventIngestProperties {
+
   String influxDbDatabaseOverride;
+
   String influxDbRetentionPolicyOverride;
 
   /**
    * The delimiter to use when constructing a qualified account value.
    */
+  @NotBlank
   String qualifiedAccountDelimiter = ":";
 
+  /**
+   * Topics to be ingested that contain com.rackspace.monplat.protocol.ExternalMetric messages encoded as JSON.
+   */
+  @NotEmpty
+  List<String> topics = List.of("telemetry.metrics.json");
 }
